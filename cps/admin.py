@@ -1760,15 +1760,32 @@ def _configuration_update_helper():
         # Reverse proxy login configuration
         _config_checkbox(to_save, "config_allow_reverse_proxy_header_login")
         _config_string(to_save, "config_reverse_proxy_login_header_name")
+        _config_checkbox(to_save, "config_check_reverse_proxy_header_login_email")
+        _config_checkbox(to_save, "config_reverse_proxy_header_login_uses_jwt")
+        _config_string(to_save, "config_reverse_proxy_jwt_audience")
+        _config_string(to_save, "config_reverse_proxy_jwt_issuer")
+        _config_string(to_save, "config_reverse_proxy_jwt_jwks_url")
+        _config_string(to_save, "config_reverse_proxy_jwt_id_claim")
 
         # OAuth configuration
         if config.config_login_type == constants.LOGIN_OAUTH:
             reboot_required |= _configuration_oauth_helper(to_save)
 
+        # logfile configuration
         reboot, message = _configuration_logfile_helper(to_save)
         if message:
             return message
         reboot_required |= reboot
+
+        # security configuration
+        _config_checkbox(to_save, "config_password_policy")
+        _config_checkbox(to_save, "config_password_number")
+        _config_checkbox(to_save, "config_password_lower")
+        _config_checkbox(to_save, "config_password_upper")
+        _config_checkbox(to_save, "config_password_special")
+        _config_int(to_save, "config_password_min_length")
+        reboot_required |= _config_int(to_save, "config_session")
+
         # Rarfile Content configuration
         _config_string(to_save, "config_rarfile_location")
         if "config_rarfile_location" in to_save:
@@ -1837,11 +1854,11 @@ def _handle_new_user(to_save, content, languages, translations, kobo_support):
         content.sidebar_view |= constants.DETAIL_RANDOM
 
     content.role = constants.selected_roles(to_save)
-    content.password = generate_password_hash(to_save["password"])
     try:
         if not to_save["name"] or not to_save["email"] or not to_save["password"]:
             log.info("Missing entries on new user")
             raise Exception(_(u"Please fill out all fields!"))
+        content.password = generate_password_hash(helper.valid_password(to_save.get("password", "")))
         content.email = check_email(to_save["email"])
         # Query username, if not existing, change
         content.name = check_username(to_save["name"])
@@ -1925,8 +1942,6 @@ def _handle_edit_user(to_save, content, languages, translations, kobo_support):
             log.warning("No admin user remaining, can't remove admin role from {}".format(content.name))
             flash(_("No admin user remaining, can't remove admin role"), category="error")
             return redirect(url_for('admin.admin'))
-        if to_save.get("password"):
-            content.password = generate_password_hash(to_save["password"])
         anonymous = content.is_anonymous
         content.role = constants.selected_roles(to_save)
         if anonymous:
@@ -1960,6 +1975,8 @@ def _handle_edit_user(to_save, content, languages, translations, kobo_support):
         if to_save.get("locale"):
             content.locale = to_save["locale"]
         try:
+            if to_save.get('password', "") != "":
+                content.password = generate_password_hash(helper.valid_password(to_save['password']))
             if to_save.get("email", content.email) != content.email:
                 content.email = check_email(to_save["email"])
             # Query username, if not existing, change

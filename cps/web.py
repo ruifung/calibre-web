@@ -46,7 +46,7 @@ from .gdriveutils import getFileFromEbooksFolder, do_gdrive_download
 from .helper import check_valid_domain, check_email, check_username, \
     get_book_cover, get_series_cover_thumbnail, get_download_link, send_mail, generate_random_password, \
     send_registration_mail, check_send_to_ereader, check_read_formats, tags_filters, reset_password, valid_email, \
-    edit_book_read_status
+    edit_book_read_status, valid_password
 from .pagination import Pagination
 from .redirect import redirect_back
 from .babel import get_available_locale
@@ -54,6 +54,7 @@ from .usermanagement import login_required_if_no_ano
 from .kobo_sync_status import remove_synced_book
 from .render_template import render_title_template
 from .kobo_sync_status import change_archived_books
+
 
 feature_support = {
     'ldap': bool(services.ldap),
@@ -1355,10 +1356,10 @@ def logout():
 def change_profile(kobo_support, local_oauth_check, oauth_status, translations, languages):
     to_save = request.form.to_dict()
     current_user.random_books = 0
-    if current_user.role_passwd() or current_user.role_admin():
-        if to_save.get("password"):
-            current_user.password = generate_password_hash(to_save.get("password"))
     try:
+        if current_user.role_passwd() or current_user.role_admin():
+            if to_save.get('password', "") != "":
+                current_user.password = generate_password_hash(valid_password(to_save['password']))
         if to_save.get("kindle_mail", current_user.kindle_mail) != current_user.kindle_mail:
             current_user.kindle_mail = valid_email(to_save.get("kindle_mail"))
         if to_save.get("email", current_user.email) != current_user.email:
@@ -1382,6 +1383,7 @@ def change_profile(kobo_support, local_oauth_check, oauth_status, translations, 
         flash(str(ex), category="error")
         return render_title_template("user_edit.html",
                                      content=current_user,
+                                     config=config,
                                      translations=translations,
                                      profile=1,
                                      languages=languages,
@@ -1433,6 +1435,7 @@ def profile():
                                  profile=1,
                                  languages=languages,
                                  content=current_user,
+                                 config=config,
                                  kobo_support=kobo_support,
                                  title=_(u"%(name)s's profile", name=current_user.name),
                                  page="me",
